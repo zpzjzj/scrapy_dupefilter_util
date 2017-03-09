@@ -4,8 +4,6 @@ from scrapy.utils.job import job_dir
 import logging
 logger = logging.getLogger(__name__)
 
-# __all__ = ['DUPEFILTER_PIPELINE_CONFIG', 'REQUEST_DUPEFILTER_CONFIG', 'ItemRequestDupeFilter', 'DupefilterPipeline']
-
 """
 SETTINGS
 
@@ -17,10 +15,10 @@ ITEM_PIPELINES = {
   'scrapy_dupefilter_util.DupefilterPipeline' : 300
 }
 
-DUPEFILTER_PIPELINE_CONFIG: {'items': {'item': <item_class>, 'collection': <collection> }}
+DUPEFILTER_PIPELINE_CONFIG: {'items': [{'item': <item_class>, 'collection': <collection> }]}
 
-DUPEFILTER_CLASS = "module.utils.ItemRequestDupeFilter"
-REQUEST_DUPEFILTER_CONFIG: {'items': {'item': <item_class>, 'collection': <collection> }}
+DUPEFILTER_CLASS = "scrapy_dupefilter_util.ItemRequestDupeFilter"
+REQUEST_DUPEFILTER_CONFIG: {'items': [{'item': <item_class>, 'collection': <collection> }]}
 
 in Item class:
 
@@ -46,6 +44,13 @@ def get_item_dict(items):
         val['nullable_fields'] = item.get('nullable_fields') or extract_keys(item_cls, 'nullable')
         res[item_cls] = val
     return res
+
+
+def check_settings(settings):
+    var_str = ['MONGO_URI', 'MONGO_DATABASE']
+    for var in var_str:
+        if not settings.get(var):
+            logging.error("{} not set in settings".format(var))
 
 
 class ItemRequestDupeFilter(RFPDupeFilter):
@@ -84,6 +89,7 @@ class ItemRequestDupeFilter(RFPDupeFilter):
 
     @classmethod
     def from_settings(cls, settings):
+        check_settings(settings)
         debug = settings.getbool('DUPEFILTER_DEBUG')
         config = settings.getdict('REQUEST_DUPEFILTER_CONFIG', {})
         mongo_uri = settings.get('MONGO_URI')
@@ -113,6 +119,7 @@ class DupefilterPipeline(object):
 
     @classmethod
     def from_crawler(cls, crawler):
+        check_settings(crawler.settings)
         return cls(
             mongo_uri=crawler.settings.get('MONGO_URI'),
             mongo_db=crawler.settings.get('MONGO_DATABASE'),
