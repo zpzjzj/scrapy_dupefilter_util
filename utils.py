@@ -7,6 +7,8 @@ logger = logging.getLogger(__name__)
 """
 SETTINGS
 
+# 这里路径需要填补完全，否则会出现 item 和 ItemClass 类型不匹配的情况
+from {project}.items import {ItemClass}
 
 MONGO_URI = 'mongodb://localhost:27017'
 MONGO_DATABASE = 'scrapy'
@@ -49,8 +51,11 @@ def get_item_dict(items):
 def check_settings(settings):
     var_str = ['MONGO_URI', 'MONGO_DATABASE']
     for var in var_str:
-        if not settings.get(var):
+        setting = settings.get(var)
+        if not setting:
             logging.error("{} not set in settings".format(var))
+        else:
+            logging.debug(f'in check_settings: {var} = {setting}')
 
 
 class ItemRequestDupeFilter(RFPDupeFilter):
@@ -76,7 +81,6 @@ class ItemRequestDupeFilter(RFPDupeFilter):
         if fp_seen:
             return fp_seen
         item = request.meta.get('item')
-        cls_info_res = None
         for item_cls, cls_info in self.items.items():
             if isinstance(item, item_cls) and cls_info['keys']:
                 cls_info_res = cls_info
@@ -127,7 +131,6 @@ class DupefilterPipeline(object):
         )
 
     def process_item(self, item, spider):
-        cls_info_res = None
         for item_cls, cls_info in self.items.items():
             if isinstance(item, item_cls):
                 cls_info_res = cls_info
@@ -141,7 +144,6 @@ class DupefilterPipeline(object):
         res = self.db[collection_name].find_one(key_dict)
 
         output = item.serializer() if hasattr(item, 'serializer') else dict(item)
-
         if not keys or not res:  # not exist
             self.db[collection_name].insert(output)
             spider.crawler.stats.inc_value('pipeline/mongodb_item_insert_cnt')
@@ -152,4 +154,3 @@ class DupefilterPipeline(object):
                 self.db[collection_name].update(key_dict, {"$set": output})   # complete field
                 spider.crawler.stats.inc_value('pipeline/mongodb_item_update_cnt')
         return item
-
