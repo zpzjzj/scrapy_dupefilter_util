@@ -2,6 +2,9 @@ import pymongo
 from scrapy.dupefilters import RFPDupeFilter
 from scrapy.utils.job import job_dir
 import logging
+
+from .common.utils import find_class
+
 logger = logging.getLogger(__name__)
 
 """
@@ -81,11 +84,8 @@ class ItemRequestDupeFilter(RFPDupeFilter):
         if fp_seen:
             return fp_seen
         item = request.meta.get('item')
-        for item_cls, cls_info in self.items.items():
-            if isinstance(item, item_cls) and cls_info['keys']:
-                cls_info_res = cls_info
-                break
-        else:
+        cls_info_res = find_class(item, self.items)
+        if not cls_info_res or not cls_info_res['keys']:
             return
         key_dict = {key: item.get(key) for key in cls_info_res['keys']}
         res = self.db[cls_info_res['collection']].find_one(key_dict)

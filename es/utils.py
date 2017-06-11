@@ -2,6 +2,7 @@ from scrapy.dupefilters import RFPDupeFilter
 from scrapy.utils.job import job_dir
 import logging
 from scrapyelasticsearch.scrapyelasticsearch import ElasticSearchPipeline
+from ..common.utils import find_class, get_item_dict
 
 logger = logging.getLogger(__name__)
 
@@ -33,26 +34,6 @@ nullable = True
 
 DUPEFILTER_PIPELINE_CONFIG = "DUPEFILTER_PIPELINE_CONFIG"
 REQUEST_DUPEFILTER_CONFIG = "REQUEST_DUPEFILTER_CONFIG"
-
-
-def get_item_dict(items, settings):
-    def extract_keys(cls, attr_name='key'):
-        return [field for field, attr in cls.fields.items() if attr.get(attr_name)]
-    # set attributes for each item class
-    res = dict()  # item cls => attributes (keys, nullable_fields, es_index, es_type, es_unique_keys ...)
-    default_index = settings.get('ELASTICSEARCH_INDEX')
-    default_type = settings.get('ELASTICSEARCH_TYPE')
-    default_uniq_key = settings.get('ELASTICSEARCH_UNIQ_KEY')
-    for item in items:
-        val = item.copy()
-        item_cls = item['item']
-        val['keys'] = item.get('keys') or extract_keys(item_cls)
-        val['nullable_fields'] = item.get('nullable_fields') or extract_keys(item_cls, 'nullable')
-        val['ELASTICSEARCH_INDEX'] = item.get('ELASTICSEARCH_INDEX') or default_index
-        val['ELASTICSEARCH_TYPE'] = item.get('ELASTICSEARCH_TYPE') or default_type
-        val['ELASTICSEARCH_UNIQ_KEY'] = item.get('ELASTICSEARCH_UNIQ_KEY') or default_uniq_key
-        res[item_cls] = val
-    return res
 
 
 def check_settings(settings):
@@ -101,6 +82,7 @@ class ItemRequestDupeFilter(RFPDupeFilter):
         if fp_seen:
             return fp_seen
         item = request.meta.get('item')
+
         for item_cls, cls_info in self.items.items():
             if isinstance(item, item_cls) and cls_info['keys']:
                 cls_info_res = cls_info
@@ -199,11 +181,8 @@ class DupefilterPipeline(ElasticSearchPipeline):
             for each in item:
                 self.process_item(each, spider)
         else:
-            for item_cls, cls_info in self.items.items():
-                if isinstance(item, item_cls):
-                    cls_info_res = cls_info
-                    break
-            else:  # non in responsible item classes
+            cls_info_res = find_class(item, self.items)
+            if not cls_info_res:
                 return
             keys = cls_info_res['keys']
             res = self.search_item(item, cls_info_res)
